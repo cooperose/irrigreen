@@ -36,7 +36,6 @@ async def async_setup_entry(
         if sensor.get("active"):
             entities.append(FlowSensorActiveBinarySensor(coordinator, idx))
 
-    entities.append(SystemAutoWaterBinarySensor(coordinator))
     entities.append(JobRunningBinarySensor(coordinator))
     entities.append(ProblemBinarySensor(coordinator))
 
@@ -123,18 +122,6 @@ class FlowSensorActiveBinarySensor(IrrigreenEntity, BinarySensorEntity):
             return bool(sensors[self._idx].get("active"))
         return None
 
-
-class SystemAutoWaterBinarySensor(IrrigreenEntity, BinarySensorEntity):
-    def __init__(self, coordinator: IrrigreenCoordinator) -> None:
-        super().__init__(coordinator, "system_auto_water")
-        self._attr_name = "Automatic watering"
-
-    @property
-    def is_on(self) -> bool | None:
-        d = self._dashboard
-        if d is None:
-            return None
-        return bool(d.get("system_auto_water"))
 
 
 class ProblemBinarySensor(IrrigreenEntity, BinarySensorEntity):

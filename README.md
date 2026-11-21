@@ -24,11 +24,14 @@ account, no internet dependency.
 - **Valve switch** per valve — quick-run / stop
 - **Schedule switch** per slot — enable / disable
 - **Zone enable** switch per head — enable / disable the head (config)
+- **Valve enable** switch per valve terminal — turn on additional valves (config)
 - **Double coverage** switch per head (config)
+- **Automatic watering** switch — weather-based auto-watering on/off
 - **Stop all watering** button
 - **Calibrate** button per head
 - **Test devices** button (diagnostic scan — detects stuck valves / faults)
 - **Scan for devices** button (identify devices on the bus)
+- **Check head updates** button (scans heads and updates firmware if needed)
 - **Services** for automations: `irrigreen.run_zone`, `irrigreen.run_valve`,
   `irrigreen.stop`, `irrigreen.set_schedule`
 

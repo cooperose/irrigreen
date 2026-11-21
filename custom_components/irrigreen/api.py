@@ -241,3 +241,13 @@ class IrrigreenClient:
     async def async_set_setup(self, setup_num: int, body: dict) -> None:
         """Write a full setup bank (zone/valve enable + names)."""
         await self._post(f"{EP_SYSTEM_SETUP}/{setup_num}", body)
+
+    async def async_set_auto_water(self, enabled: bool) -> None:
+        """Enable/disable weather-based automatic watering (partial /system_pref)."""
+        await self._post(EP_SYSTEM_PREF, {"v": 1, "awEnabled": enabled})
+
+    async def async_check_head_updates(self) -> None:
+        """Run the diagnostic scan that also checks/updates head firmware."""
+        await self._post(
+            EP_JOB_DIAGNOSTIC, {"op": "scan_test", "v": 1, "data": {"v": 1, "update": True}}
+        )

@@ -22,6 +22,7 @@ async def async_setup_entry(
         StopAllButton(coordinator),
         TestDevicesButton(coordinator),
         ScanDevicesButton(coordinator),
+        CheckHeadUpdatesButton(coordinator),
     ]
     for zone in dashboard.get("enabled_zones", []):
         entities.append(CalibrateZoneButton(coordinator, zone["zone"]))
@@ -66,6 +67,20 @@ class ScanDevicesButton(IrrigreenEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_scan_identify()
+
+
+class CheckHeadUpdatesButton(IrrigreenEntity, ButtonEntity):
+    """Run the scan that checks each head's firmware and updates if needed."""
+
+    _attr_icon = "mdi:update"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: IrrigreenCoordinator) -> None:
+        super().__init__(coordinator, "check_head_updates")
+        self._attr_name = "Check head updates"
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_check_head_updates()
 
 
 class CalibrateZoneButton(IrrigreenEntity, ButtonEntity):
