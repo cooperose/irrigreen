@@ -108,12 +108,31 @@ class IrrigreenClient:
         if isinstance(dashboard, Exception):
             raise dashboard
 
+        # Friendly schedule names live in /schedule_pref/<idx>; fetch per schedule.
+        sched_prefs: dict[int, Any] = {}
+        directory_ok = ok(directory)
+        if isinstance(directory_ok, dict):
+            idxs = [
+                s.get("idx")
+                for s in directory_ok.get("schedules", [])
+                if s.get("idx") is not None
+            ]
+            if idxs:
+                pref_results = await asyncio.gather(
+                    *(self._get(f"{EP_SCHEDULE_PREF}/{i}") for i in idxs),
+                    return_exceptions=True,
+                )
+                for i, r in zip(idxs, pref_results):
+                    if isinstance(r, dict):
+                        sched_prefs[i] = r
+
         return {
             "dashboard": dashboard,
             "device_status": ok(device),
             "job_status": ok(job),
             "schedules": ok(schedules),
-            "directory": ok(directory),
+            "directory": directory_ok,
+            "schedule_prefs": sched_prefs,
         }
 
     # -- control ---------------------------------------------------------------

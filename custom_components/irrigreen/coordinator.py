@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -31,9 +32,45 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self.client.async_get_all()
+            data = await self.client.async_get_all()
         except IrrigreenError as err:
             raise UpdateFailed(str(err)) from err
+        # Poll faster while a job is running so the UI and durations stay live.
+        job = (data.get("job_status") or {}).get("data") or {}
+        running = job.get("status") == "running"
+        self.update_interval = timedelta(seconds=5 if running else 30)
+        return data
+
+    # -- running-job helpers (immediate, unlike the lagging dashboard status) ---
+    def running_descs(self) -> list[dict]:
+        job = (self.data or {}).get("job_status") or {}
+        jdata = job.get("data") or {}
+        if jdata.get("status") != "running":
+            return []
+        out: list[dict] = []
+        for worker in jdata.get("entries") or []:
+            for item in worker or []:
+                if isinstance(item, list) and item and isinstance(item[0], dict):
+                    out.append(item[0])
+        return out
+
+    def is_desc_running(self, desc: dict | None) -> bool:
+        if not desc:
+            return False
+        for d in self.running_descs():
+            if (
+                d.get("t") == desc.get("t")
+                and d.get("term") == desc.get("term")
+                and d.get("id") == desc.get("id")
+            ):
+                return True
+        return False
+
+    def schedule_display_name(self, legacy: str) -> str:
+        idx = self.schedule_idx(legacy)
+        prefs = (self.data or {}).get("schedule_prefs") or {}
+        pref = prefs.get(idx) or prefs.get(str(idx)) or {}
+        return pref.get("userProvidedName") or f"Schedule {legacy}"
 
     # -- directory helpers (device -> run descriptor) --------------------------
     @property
