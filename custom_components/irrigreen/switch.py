@@ -61,6 +61,9 @@ class ZoneRunSwitch(IrrigreenEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        # Prefer the live job (updates instantly); fall back to dashboard status.
+        if self.coordinator.is_desc_running(self.coordinator.zone_desc(self._zone_num)):
+            return True
         z = self._zone()
         if z is None:
             return None
@@ -89,6 +92,8 @@ class ValveRunSwitch(IrrigreenEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        if self.coordinator.is_desc_running(self.coordinator.valve_desc(self._valve_num)):
+            return True
         for v in (self._dashboard or {}).get("enabled_valves", []):
             if v.get("valve") == self._valve_num:
                 return str(v.get("status", "off")).lower() in RUNNING_STATES
@@ -109,7 +114,10 @@ class ScheduleEnableSwitch(IrrigreenEntity, SwitchEntity):
     def __init__(self, coordinator: IrrigreenCoordinator, name: str) -> None:
         super().__init__(coordinator, f"schedule_{name}_enabled")
         self._sched_name = name
-        self._attr_name = f"Schedule {name} enabled"
+
+    @property
+    def name(self) -> str:
+        return f"{self.coordinator.schedule_display_name(self._sched_name)} enabled"
 
     def _sched(self) -> dict | None:
         for s in (self._schedules or []):

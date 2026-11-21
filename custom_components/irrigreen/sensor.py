@@ -170,7 +170,10 @@ class ScheduleSensor(IrrigreenEntity, SensorEntity):
     def __init__(self, coordinator, name):
         super().__init__(coordinator, f"schedule_{name}")
         self._sched_name = name
-        self._attr_name = f"Schedule {name}"
+
+    @property
+    def name(self):
+        return self.coordinator.schedule_display_name(self._sched_name)
 
     def _sched(self) -> dict | None:
         for s in (self._schedules or []):
