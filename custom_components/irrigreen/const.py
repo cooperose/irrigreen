@@ -26,6 +26,7 @@ EP_VALVE = "/valve"  # /<n>/summary
 EP_SPRINKLER_PREF = "/sprinkler_pref"  # /<zone>
 EP_SYSTEM_PREF = "/system_pref"
 EP_SYSTEM_SETUP = "/system/setup"  # /<setup_num>
+EP_SYSTEM_SET = "/system/set"
 SETUPS = (1, 2)  # controller setup banks (8 zones each)
 
 # Head hardware type (desc "t") -> friendly name.
