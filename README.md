@@ -4,12 +4,13 @@ A **local, cloud-free** Home Assistant integration for Irrigreen sprinkler
 controllers. It talks directly to the controller on your network — no Irrigreen
 account, no internet dependency.
 
-> **v0.1 — monitoring.** This first release reads and reports everything the
-> controller exposes locally. Control (run zone, run schedule, stop, rain delay,
-> blowout, calibrate) is the next release.
+> **v0.2 — monitoring + control.** Reads everything the controller exposes
+> locally, and now controls it: run zones/valves, enable/disable schedules, and
+> stop. All local, no cloud.
 
 ## What you get
 
+**Monitoring**
 - **Per zone:** watering on/off, status, and water-adjustment %
 - **Valves:** running state
 - **Master valves:** active state and live current draw (mA)
@@ -17,6 +18,19 @@ account, no internet dependency.
 - **Schedules:** each slot's state (watering / enabled / disabled) with start time, duration, type and cycle
 - **System:** automatic-watering state and system-wide water adjustment %
 - **Job feed:** current/last run with start and stop reason
+
+**Control**
+- **Zone switch** per head — turn on to quick-run it, off to stop
+- **Valve switch** per valve — quick-run / stop
+- **Schedule switch** per slot — enable / disable
+- **Stop all watering** button
+- **Services** for automations: `irrigreen.run_zone`, `irrigreen.run_valve`,
+  `irrigreen.stop`, `irrigreen.set_schedule`
+
+Run commands are issued exactly as the official app issues them (verified against
+the app's own traffic), using each device's descriptor from the controller's
+`/directory`. Note: a quick-run uses the controller's default duration; turning a
+switch off stops the current job.
 
 ## Requirements
 
@@ -58,8 +72,8 @@ safety net.
 
 ## Roadmap
 
-- v0.2: control actions (run zone, run schedule, stop, rain delay, blowout, calibrate)
-- v0.3: schedule editing; flow-based water-usage sensors
+- v0.3: per-head config (device type XR/HydroBoost, flow restrictor, double coverage)
+- later: blowout/winterize and calibrate actions; flow-based water-usage sensors; schedule editing
 
 ## Disclaimer
 
