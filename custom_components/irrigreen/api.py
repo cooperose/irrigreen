@@ -38,8 +38,10 @@ from .const import (
     EP_SPRINKLER_PREF,
     EP_SYSTEM_INFO,
     EP_SYSTEM_PREF,
+    EP_SYSTEM_SETUP,
     EP_VALVE,
     EP_ZONES_DASHBOARD,
+    SETUPS,
 )
 
 
@@ -168,6 +170,16 @@ class IrrigreenClient:
                 if isinstance(r, dict):
                     sprinkler_prefs[z] = r
 
+        # Setup banks (zone/valve enable + names) for read-modify-write.
+        setups: dict[int, Any] = {}
+        setup_results = await asyncio.gather(
+            *(self._get(f"{EP_SYSTEM_SETUP}/{n}") for n in SETUPS),
+            return_exceptions=True,
+        )
+        for n, r in zip(SETUPS, setup_results):
+            if isinstance(r, dict):
+                setups[n] = r
+
         return {
             "dashboard": dashboard,
             "device_status": ok(device),
@@ -182,6 +194,7 @@ class IrrigreenClient:
             "zone_summaries": zone_sum,
             "valve_summaries": valve_sum,
             "sprinkler_prefs": sprinkler_prefs,
+            "setups": setups,
         }
 
     # -- control ---------------------------------------------------------------
@@ -217,3 +230,14 @@ class IrrigreenClient:
     async def async_scan_identify(self) -> None:
         """Scan/identify devices on the bus."""
         await self._post(EP_JOB_SCAN, {"op": "scan", "v": 1})
+
+    async def async_set_double_coverage(self, zone: int, enabled: bool, seed_until: int = 0) -> None:
+        """Set a head's double-coverage preference (the app's 'save' action)."""
+        await self._post(
+            f"{EP_SPRINKLER_PREF}/{zone}",
+            {"v": 1, "doubleCoverage": enabled, "seedUntil": seed_until},
+        )
+
+    async def async_set_setup(self, setup_num: int, body: dict) -> None:
+        """Write a full setup bank (zone/valve enable + names)."""
+        await self._post(f"{EP_SYSTEM_SETUP}/{setup_num}", body)

@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -26,11 +27,15 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
     for zone in dashboard.get("enabled_zones", []):
         entities.append(ZoneRunSwitch(coordinator, zone["zone"]))
+        entities.append(DoubleCoverageSwitch(coordinator, zone["zone"]))
     for valve in dashboard.get("enabled_valves", []):
         entities.append(ValveRunSwitch(coordinator, valve["valve"]))
     for sched in schedules:
         if not sched.get("deleted"):
             entities.append(ScheduleEnableSwitch(coordinator, sched["name"]))
+    # Enable/disable every physically present head.
+    for head in coordinator.real_heads():
+        entities.append(ZoneEnableSwitch(coordinator, head["zone"], head.get("name")))
 
     async_add_entities(entities)
 
@@ -104,6 +109,65 @@ class ValveRunSwitch(IrrigreenEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_stop()
+
+
+class DoubleCoverageSwitch(IrrigreenEntity, SwitchEntity):
+    """Per-head double coverage (writes /sprinkler_pref/<zone>)."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:circle-multiple"
+
+    def __init__(self, coordinator: IrrigreenCoordinator, zone_num: int) -> None:
+        super().__init__(coordinator, f"zone{zone_num}_double_coverage")
+        self._zone_num = zone_num
+
+    def _label(self) -> str:
+        for z in (self._dashboard or {}).get("enabled_zones", []):
+            if z.get("zone") == self._zone_num:
+                return z.get("name") or f"Zone {self._zone_num}"
+        return f"Zone {self._zone_num}"
+
+    @property
+    def name(self) -> str:
+        return f"{self._label()} double coverage"
+
+    @property
+    def is_on(self) -> bool | None:
+        pref = self.coordinator.sprinkler_pref(self._zone_num)
+        return pref.get("doubleCoverage") if "doubleCoverage" in pref else None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_double_coverage(self._zone_num, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_double_coverage(self._zone_num, False)
+
+
+class ZoneEnableSwitch(IrrigreenEntity, SwitchEntity):
+    """Enable/disable a head (writes the setup bank)."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_icon = "mdi:power"
+
+    def __init__(self, coordinator: IrrigreenCoordinator, zone_num: int, label: str | None) -> None:
+        super().__init__(coordinator, f"zone{zone_num}_enabled")
+        self._zone_num = zone_num
+        self._label = label or f"Zone {zone_num}"
+
+    @property
+    def name(self) -> str:
+        return f"{self._label} enabled"
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.head_enabled(self._zone_num)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_enabled(self._zone_num, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_zone_enabled(self._zone_num, False)
 
 
 class ScheduleEnableSwitch(IrrigreenEntity, SwitchEntity):

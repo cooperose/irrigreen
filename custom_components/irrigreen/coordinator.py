@@ -188,3 +188,60 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def zone_summary(self, zone: int) -> dict:
         return ((self.data or {}).get("zone_summaries") or {}).get(zone) or {}
+
+    # -- setup banks / real heads ---------------------------------------------
+    @property
+    def _setups(self) -> dict:
+        return (self.data or {}).get("setups") or {}
+
+    def real_heads(self) -> list[dict]:
+        """Every physically present head across setup banks (id != 0)."""
+        heads: list[dict] = []
+        for setup_num, setup in self._setups.items():
+            for ig in (setup or {}).get("igsprinklers", []):
+                if ig.get("id"):
+                    heads.append({"setup": setup_num, **ig})
+        return heads
+
+    def _setup_for_zone(self, zone: int) -> int | None:
+        for setup_num, setup in self._setups.items():
+            for ig in (setup or {}).get("igsprinklers", []):
+                if ig.get("zone") == zone:
+                    return setup_num
+        return None
+
+    def head_enabled(self, zone: int) -> bool | None:
+        for h in self.real_heads():
+            if h.get("zone") == zone:
+                return bool(h.get("enabled"))
+        return None
+
+    async def async_set_zone_enabled(self, zone: int, enabled: bool) -> None:
+        """Enable/disable a head by read-modify-writing its setup bank."""
+        setup_num = self._setup_for_zone(zone)
+        setup = self._setups.get(setup_num)
+        if setup is None:
+            raise IrrigreenError(f"No setup bank found for zone {zone}")
+        body = {
+            "mast_valv": setup.get("mast_valv", 1),
+            "igsprinklers": [
+                {
+                    "id": ig.get("id", 0),
+                    "enabled": (enabled if ig.get("zone") == zone else bool(ig.get("enabled"))),
+                    "zone": ig.get("zone"),
+                    "name": ig.get("name", ""),
+                }
+                for ig in setup.get("igsprinklers", [])
+            ],
+            "valves": [
+                {"enabled": bool(v.get("enabled")), "zone": v.get("zone")}
+                for v in setup.get("valves", [])
+            ],
+        }
+        await self.client.async_set_setup(setup_num, body)
+        await self.async_request_refresh()
+
+    async def async_set_double_coverage(self, zone: int, enabled: bool) -> None:
+        seed = self.sprinkler_pref(zone).get("seedUntil") or 0
+        await self.client.async_set_double_coverage(zone, enabled, seed)
+        await self.async_request_refresh()
