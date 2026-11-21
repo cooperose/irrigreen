@@ -209,9 +209,6 @@ class AutoWaterSwitch(IrrigreenEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        pref = self.coordinator.system_pref
-        if "awEnabled" in pref:
-            return bool(pref.get("awEnabled"))
         d = self._dashboard or {}
         return bool(d.get("system_auto_water")) if "system_auto_water" in d else None
 
