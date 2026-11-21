@@ -270,8 +270,57 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.client.async_set_setup(setup_num, self._build_setup_body(setup, valve_zone=valve, value=enabled))
         await self.async_request_refresh()
 
+    # -- automatic watering + water adjustments --------------------------------
+    @property
+    def auto_water_on(self) -> bool:
+        d = (self.data or {}).get("dashboard") or {}
+        return bool(d.get("system_auto_water"))
+
+    def system_water_adj(self) -> float | None:
+        d = (self.data or {}).get("dashboard") or {}
+        v = d.get("system_water_adj")
+        return float(v) if v is not None else None
+
+    def zone_water_adj(self, zone: int) -> float | None:
+        for z in ((self.data or {}).get("dashboard") or {}).get("enabled_zones", []):
+            if z.get("zone") == zone and z.get("water_adj") is not None:
+                return float(z["water_adj"])
+        return None
+
+    def _current_system_adj(self) -> float:
+        v = self.system_water_adj()
+        # 0 is what the controller reports while auto-water is off; use 100% then.
+        return v if v and v > 0 else 1
+
     async def async_set_auto_water(self, enabled: bool) -> None:
-        await self.client.async_set_auto_water(enabled)
+        await self.client.async_set_auto_water(enabled, self._current_system_adj())
+        await self.async_request_refresh()
+
+    async def async_set_system_water_adj(self, value: float) -> None:
+        """Whole-system adjustment (1.0 = 100%). Only allowed while auto-water is on."""
+        if not self.auto_water_on:
+            raise IrrigreenError("Turn on automatic watering to change the system adjustment")
+        await self.client.async_set_auto_water(True, round(value, 2))
+        await self.async_request_refresh()
+
+    async def async_set_zone_water_adj(self, zone: int, value: float) -> None:
+        """Per-head adjustment, written the way the app does (all heads in the bank)."""
+        if not self.auto_water_on:
+            raise IrrigreenError("Turn on automatic watering to change head adjustments")
+        setup_num = self._setup_for("igsprinklers", zone)
+        if setup_num is None:
+            raise IrrigreenError(f"No setup bank found for zone {zone}")
+        bank_zones = {
+            ig.get("zone") for ig in (self._setups.get(setup_num) or {}).get("igsprinklers", [])
+        }
+        heads = []
+        for z in ((self.data or {}).get("dashboard") or {}).get("enabled_zones", []):
+            zn = z.get("zone")
+            if zn not in bank_zones:
+                continue
+            adj = round(value, 2) if zn == zone else z.get("water_adj")
+            heads.append({"enabled": True, "zone": zn, "water_adj": adj})
+        await self.client.async_set_setup(setup_num, {"igsprinklers": heads})
         await self.async_request_refresh()
 
     async def async_check_head_updates(self) -> None:
