@@ -36,6 +36,11 @@ async def async_setup_entry(
     # Enable/disable every physically present head.
     for head in coordinator.real_heads():
         entities.append(ZoneEnableSwitch(coordinator, head["zone"], head.get("name")))
+    # Enable/disable every valve terminal.
+    for v in coordinator.valve_entries():
+        entities.append(ValveEnableSwitch(coordinator, v["zone"]))
+    # System-wide automatic (weather-based) watering.
+    entities.append(AutoWaterSwitch(coordinator))
 
     async_add_entities(entities)
 
@@ -168,6 +173,53 @@ class ZoneEnableSwitch(IrrigreenEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_zone_enabled(self._zone_num, False)
+
+
+class ValveEnableSwitch(IrrigreenEntity, SwitchEntity):
+    """Enable/disable a valve terminal (writes the setup bank)."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_icon = "mdi:power"
+
+    def __init__(self, coordinator: IrrigreenCoordinator, valve_num: int) -> None:
+        super().__init__(coordinator, f"valve{valve_num}_enabled")
+        self._valve_num = valve_num
+        self._attr_name = f"Valve {valve_num} enabled"
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.valve_enabled(self._valve_num)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_valve_enabled(self._valve_num, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_valve_enabled(self._valve_num, False)
+
+
+class AutoWaterSwitch(IrrigreenEntity, SwitchEntity):
+    """Weather-based automatic watering (writes /system_pref awEnabled)."""
+
+    _attr_icon = "mdi:weather-partly-rainy"
+
+    def __init__(self, coordinator: IrrigreenCoordinator) -> None:
+        super().__init__(coordinator, "auto_water")
+        self._attr_name = "Automatic watering"
+
+    @property
+    def is_on(self) -> bool | None:
+        pref = self.coordinator.system_pref
+        if "awEnabled" in pref:
+            return bool(pref.get("awEnabled"))
+        d = self._dashboard or {}
+        return bool(d.get("system_auto_water")) if "system_auto_water" in d else None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_auto_water(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_auto_water(False)
 
 
 class ScheduleEnableSwitch(IrrigreenEntity, SwitchEntity):

@@ -203,10 +203,18 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     heads.append({"setup": setup_num, **ig})
         return heads
 
-    def _setup_for_zone(self, zone: int) -> int | None:
+    def valve_entries(self) -> list[dict]:
+        """Every valve terminal across setup banks."""
+        out: list[dict] = []
         for setup_num, setup in self._setups.items():
-            for ig in (setup or {}).get("igsprinklers", []):
-                if ig.get("zone") == zone:
+            for v in (setup or {}).get("valves", []):
+                out.append({"setup": setup_num, **v})
+        return out
+
+    def _setup_for(self, key: str, num: int) -> int | None:
+        for setup_num, setup in self._setups.items():
+            for item in (setup or {}).get(key, []):
+                if item.get("zone") == num:
                     return setup_num
         return None
 
@@ -216,29 +224,58 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return bool(h.get("enabled"))
         return None
 
-    async def async_set_zone_enabled(self, zone: int, enabled: bool) -> None:
-        """Enable/disable a head by read-modify-writing its setup bank."""
-        setup_num = self._setup_for_zone(zone)
-        setup = self._setups.get(setup_num)
-        if setup is None:
-            raise IrrigreenError(f"No setup bank found for zone {zone}")
-        body = {
+    def valve_enabled(self, valve: int) -> bool | None:
+        for v in self.valve_entries():
+            if v.get("zone") == valve:
+                return bool(v.get("enabled"))
+        return None
+
+    def _build_setup_body(
+        self, setup: dict, ig_zone: int | None = None, valve_zone: int | None = None,
+        value: bool = False,
+    ) -> dict:
+        return {
             "mast_valv": setup.get("mast_valv", 1),
             "igsprinklers": [
                 {
                     "id": ig.get("id", 0),
-                    "enabled": (enabled if ig.get("zone") == zone else bool(ig.get("enabled"))),
+                    "enabled": (value if ig.get("zone") == ig_zone else bool(ig.get("enabled"))),
                     "zone": ig.get("zone"),
                     "name": ig.get("name", ""),
                 }
                 for ig in setup.get("igsprinklers", [])
             ],
             "valves": [
-                {"enabled": bool(v.get("enabled")), "zone": v.get("zone")}
+                {
+                    "enabled": (value if v.get("zone") == valve_zone else bool(v.get("enabled"))),
+                    "zone": v.get("zone"),
+                }
                 for v in setup.get("valves", [])
             ],
         }
-        await self.client.async_set_setup(setup_num, body)
+
+    async def async_set_zone_enabled(self, zone: int, enabled: bool) -> None:
+        setup_num = self._setup_for("igsprinklers", zone)
+        setup = self._setups.get(setup_num)
+        if setup is None:
+            raise IrrigreenError(f"No setup bank found for zone {zone}")
+        await self.client.async_set_setup(setup_num, self._build_setup_body(setup, ig_zone=zone, value=enabled))
+        await self.async_request_refresh()
+
+    async def async_set_valve_enabled(self, valve: int, enabled: bool) -> None:
+        setup_num = self._setup_for("valves", valve)
+        setup = self._setups.get(setup_num)
+        if setup is None:
+            raise IrrigreenError(f"No setup bank found for valve {valve}")
+        await self.client.async_set_setup(setup_num, self._build_setup_body(setup, valve_zone=valve, value=enabled))
+        await self.async_request_refresh()
+
+    async def async_set_auto_water(self, enabled: bool) -> None:
+        await self.client.async_set_auto_water(enabled)
+        await self.async_request_refresh()
+
+    async def async_check_head_updates(self) -> None:
+        await self.client.async_check_head_updates()
         await self.async_request_refresh()
 
     async def async_set_double_coverage(self, zone: int, enabled: bool) -> None:
