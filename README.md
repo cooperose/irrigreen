@@ -24,8 +24,19 @@ account, no internet dependency.
 - **Valve switch** per valve — quick-run / stop
 - **Schedule switch** per slot — enable / disable
 - **Stop all watering** button
+- **Calibrate** button per head
+- **Test devices** button (diagnostic scan — detects stuck valves / faults)
+- **Scan for devices** button (identify devices on the bus)
 - **Services** for automations: `irrigreen.run_zone`, `irrigreen.run_valve`,
   `irrigreen.stop`, `irrigreen.set_schedule`
+
+**Health, water & config**
+- **Problem** binary sensor + **Active errors** sensor — per-head and per-valve
+  faults (stuck valves etc.), with details in attributes
+- **Last run water use** (gallons) with 7-day / 13-week history
+- **Firmware version**, **Cloud connection** (state + RSSI), **Weather adjustment**
+- **Per-head type** (XR for v2 / HydroBoost for v3) with config attributes:
+  double coverage, flow restrictor, XP, plant/soil/sun, calibration, sqft, head id
 
 Run commands are issued exactly as the official app issues them (verified against
 the app's own traffic), using each device's descriptor from the controller's
@@ -72,8 +83,13 @@ safety net.
 
 ## Roadmap
 
-- v0.3: per-head config (device type XR/HydroBoost, flow restrictor, double coverage)
-- later: blowout/winterize and calibrate actions; flow-based water-usage sensors; schedule editing
+- Writable per-head config (toggle double coverage / flow restrictor, set plant/soil/sun) — needs the write endpoints confirmed
+- Blowout / winterize action
+- Zone enable/disable (via `/system/setup`)
+
+Note: controller software-update availability is cloud-managed and not exposed by
+the local API, so the integration reports the current firmware version but does
+not trigger updates.
 
 ## Disclaimer
 

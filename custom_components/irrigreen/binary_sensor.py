@@ -38,6 +38,7 @@ async def async_setup_entry(
 
     entities.append(SystemAutoWaterBinarySensor(coordinator))
     entities.append(JobRunningBinarySensor(coordinator))
+    entities.append(ProblemBinarySensor(coordinator))
 
     async_add_entities(entities)
 
@@ -134,6 +135,26 @@ class SystemAutoWaterBinarySensor(IrrigreenEntity, BinarySensorEntity):
         if d is None:
             return None
         return bool(d.get("system_auto_water"))
+
+
+class ProblemBinarySensor(IrrigreenEntity, BinarySensorEntity):
+    """On when any head/valve reports an error (stuck valve, head fault, etc.)."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator: IrrigreenCoordinator) -> None:
+        super().__init__(coordinator, "problem")
+        self._attr_name = "Problem"
+
+    @property
+    def is_on(self) -> bool | None:
+        errs = self.coordinator.device_errors()
+        count = (self.coordinator.system_dashboard or {}).get("error_count") or 0
+        return bool(errs) or count > 0
+
+    @property
+    def extra_state_attributes(self):
+        return {"errors": self.coordinator.device_errors()}
 
 
 class JobRunningBinarySensor(IrrigreenEntity, BinarySensorEntity):

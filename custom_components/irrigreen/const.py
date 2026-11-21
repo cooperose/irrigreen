@@ -18,10 +18,23 @@ EP_DEVICE_STATUS = "/device_status"
 EP_JOB_STATUS = "/job/status"
 EP_SCHEDULES = "/system/schedules"
 EP_DIRECTORY = "/directory"
+EP_SYSTEM_INFO = "/system/info"
+EP_CONNECTION = "/system/connection"
+EP_DASHBOARD = "/system/dashboard"
+EP_IGSPRINKLER = "/igsprinkler"  # /<zone>/summary
+EP_VALVE = "/valve"  # /<n>/summary
+EP_SPRINKLER_PREF = "/sprinkler_pref"  # /<zone>
+EP_SYSTEM_PREF = "/system_pref"
+
+# Head hardware type (desc "t") -> friendly name.
+HEAD_TYPE_NAMES = {"s2ble": "XR", "s3": "HydroBoost", "v": "Valve"}
 
 # Control endpoints.
 EP_JOB_START = "/job/schedule/start"
 EP_JOB_EXIT = "/job/exit"
+EP_JOB_CALIBRATE = "/job/calibrate/start"
+EP_JOB_DIAGNOSTIC = "/job/diagnostic/start"
+EP_JOB_SCAN = "/job/scan_identify/start"
 EP_SCHEDULE_PREF = "/schedule_pref"  # append /<idx>
 
 # The endpoint used to verify we're really talking to a controller.
