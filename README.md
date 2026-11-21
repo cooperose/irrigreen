@@ -23,6 +23,8 @@ account, no internet dependency.
 - **Zone switch** per head — turn on to quick-run it, off to stop
 - **Valve switch** per valve — quick-run / stop
 - **Schedule switch** per slot — enable / disable
+- **Zone enable** switch per head — enable / disable the head (config)
+- **Double coverage** switch per head (config)
 - **Stop all watering** button
 - **Calibrate** button per head
 - **Test devices** button (diagnostic scan — detects stuck valves / faults)
@@ -83,9 +85,9 @@ safety net.
 
 ## Roadmap
 
-- Writable per-head config (toggle double coverage / flow restrictor, set plant/soil/sun) — needs the write endpoints confirmed
+- Writable flow restrictor and plant/soil/sun (same `/sprinkler_pref` endpoint; needs each save captured)
 - Blowout / winterize action
-- Zone enable/disable (via `/system/setup`)
+- Head renaming from HA
 
 Note: controller software-update availability is cloud-managed and not exposed by
 the local API, so the integration reports the current firmware version but does

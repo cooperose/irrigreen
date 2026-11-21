@@ -25,6 +25,8 @@ EP_IGSPRINKLER = "/igsprinkler"  # /<zone>/summary
 EP_VALVE = "/valve"  # /<n>/summary
 EP_SPRINKLER_PREF = "/sprinkler_pref"  # /<zone>
 EP_SYSTEM_PREF = "/system_pref"
+EP_SYSTEM_SETUP = "/system/setup"  # /<setup_num>
+SETUPS = (1, 2)  # controller setup banks (8 zones each)
 
 # Head hardware type (desc "t") -> friendly name.
 HEAD_TYPE_NAMES = {"s2ble": "XR", "s3": "HydroBoost", "v": "Valve"}
