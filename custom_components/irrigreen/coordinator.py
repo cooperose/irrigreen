@@ -34,3 +34,55 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return await self.client.async_get_all()
         except IrrigreenError as err:
             raise UpdateFailed(str(err)) from err
+
+    # -- directory helpers (device -> run descriptor) --------------------------
+    @property
+    def _directory(self) -> dict[str, Any]:
+        return (self.data or {}).get("directory") or {}
+
+    def zone_desc(self, zone: int) -> dict | None:
+        """Run descriptor for a sprinkler head by zone number."""
+        for dev in self._directory.get("devices", []):
+            if dev.get("zn") == zone and (dev.get("desc") or {}).get("t") != "v":
+                return dev.get("desc")
+        return None
+
+    def valve_desc(self, valve: int) -> dict | None:
+        """Run descriptor for a dumb valve by terminal/valve number."""
+        for dev in self._directory.get("devices", []):
+            desc = dev.get("desc") or {}
+            if desc.get("t") == "v" and desc.get("term") == valve:
+                return desc
+        return None
+
+    def schedule_idx(self, name: str) -> int | None:
+        """Directory index for a schedule by its letter/legacy name."""
+        for sched in self._directory.get("schedules", []):
+            if sched.get("legacyName") == name:
+                return sched.get("idx")
+        return None
+
+    async def async_run_zone(self, zone: int) -> None:
+        desc = self.zone_desc(zone)
+        if desc is None:
+            raise IrrigreenError(f"No directory entry for zone {zone}")
+        await self.client.async_run_desc(desc)
+        await self.async_request_refresh()
+
+    async def async_run_valve(self, valve: int) -> None:
+        desc = self.valve_desc(valve)
+        if desc is None:
+            raise IrrigreenError(f"No directory entry for valve {valve}")
+        await self.client.async_run_desc(desc)
+        await self.async_request_refresh()
+
+    async def async_stop(self) -> None:
+        await self.client.async_stop()
+        await self.async_request_refresh()
+
+    async def async_set_schedule(self, name: str, enabled: bool) -> None:
+        idx = self.schedule_idx(name)
+        if idx is None:
+            raise IrrigreenError(f"No schedule named {name}")
+        await self.client.async_set_schedule_enabled(idx, enabled)
+        await self.async_request_refresh()

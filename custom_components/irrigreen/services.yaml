@@ -1,0 +1,47 @@
+run_zone:
+  name: Run zone
+  description: Quick-run a sprinkler head by its zone number.
+  fields:
+    zone:
+      name: Zone
+      description: Zone number of the sprinkler head.
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+run_valve:
+  name: Run valve
+  description: Quick-run a dumb valve by its number.
+  fields:
+    valve:
+      name: Valve
+      description: Valve/terminal number.
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+stop:
+  name: Stop
+  description: Stop the current job (any running zone, valve, or schedule).
+set_schedule:
+  name: Set schedule enabled
+  description: Enable or disable a schedule slot.
+  fields:
+    name:
+      name: Schedule
+      description: Schedule letter/name (e.g. A).
+      required: true
+      example: A
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
