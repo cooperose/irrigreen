@@ -1,0 +1,12 @@
+{
+  "domain": "irrigreen",
+  "name": "Irrigreen",
+  "codeowners": ["@cooperose"],
+  "config_flow": true,
+  "documentation": "https://github.com/cooperose/irrigreen",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/cooperose/irrigreen/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

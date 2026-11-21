@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Irrigreen controller",
+        "description": "Enter the controller's IP address on your network. On a segmented network the controller is usually on its own VLAN, so enter the address directly (for example 192.168.1.50).",
+        "data": {
+          "host": "IP address or hostname",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach an Irrigreen controller at that address. Check the IP and that Home Assistant can route to the controller's network."
+    },
+    "abort": {
+      "already_configured": "This controller is already set up."
+    }
+  }
+}
