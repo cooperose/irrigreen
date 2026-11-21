@@ -27,6 +27,7 @@ account, no internet dependency.
 - **Valve enable** switch per valve terminal — turn on additional valves (config)
 - **Double coverage** switch per head (config)
 - **Automatic watering** switch — weather-based auto-watering on/off
+- **Auto water adjustments** — whole-system and per-head water adjustment sliders (editable only while automatic watering is on)
 - **Stop all watering** button
 - **Calibrate** button per head
 - **Test devices** button (diagnostic scan — detects stuck valves / faults)
