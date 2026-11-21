@@ -21,14 +21,24 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    EP_CONNECTION,
+    EP_DASHBOARD,
     EP_DEVICE_STATUS,
     EP_DIRECTORY,
+    EP_IGSPRINKLER,
+    EP_JOB_CALIBRATE,
+    EP_JOB_DIAGNOSTIC,
     EP_JOB_EXIT,
+    EP_JOB_SCAN,
     EP_JOB_START,
     EP_JOB_STATUS,
     EP_PROBE,
     EP_SCHEDULES,
     EP_SCHEDULE_PREF,
+    EP_SPRINKLER_PREF,
+    EP_SYSTEM_INFO,
+    EP_SYSTEM_PREF,
+    EP_VALVE,
     EP_ZONES_DASHBOARD,
 )
 
@@ -93,12 +103,19 @@ class IrrigreenClient:
         return data
 
     async def async_get_all(self) -> dict[str, Any]:
-        dashboard, device, job, schedules, directory = await asyncio.gather(
+        (
+            dashboard, device, job, schedules, directory, sysinfo, connection,
+            sysdash, syspref
+        ) = await asyncio.gather(
             self._get(EP_ZONES_DASHBOARD),
             self._get(EP_DEVICE_STATUS),
             self._get(EP_JOB_STATUS),
             self._get(EP_SCHEDULES),
             self._get(EP_DIRECTORY),
+            self._get(EP_SYSTEM_INFO),
+            self._get(EP_CONNECTION),
+            self._get(EP_DASHBOARD),
+            self._get(EP_SYSTEM_PREF),
             return_exceptions=True,
         )
 
@@ -126,6 +143,31 @@ class IrrigreenClient:
                     if isinstance(r, dict):
                         sched_prefs[i] = r
 
+        # Per-device summaries, for error/stuck-valve detection.
+        dash_ok = ok(dashboard) or {}
+        zone_nums = [z.get("zone") for z in dash_ok.get("enabled_zones", [])]
+        valve_nums = [v.get("valve") for v in dash_ok.get("enabled_valves", [])]
+        zone_sum: dict[int, Any] = {}
+        valve_sum: dict[int, Any] = {}
+        sprinkler_prefs: dict[int, Any] = {}
+        if zone_nums or valve_nums:
+            nz, nv = len(zone_nums), len(valve_nums)
+            results = await asyncio.gather(
+                *(self._get(f"{EP_IGSPRINKLER}/{z}/summary") for z in zone_nums),
+                *(self._get(f"{EP_VALVE}/{v}/summary") for v in valve_nums),
+                *(self._get(f"{EP_SPRINKLER_PREF}/{z}") for z in zone_nums),
+                return_exceptions=True,
+            )
+            for z, r in zip(zone_nums, results[:nz]):
+                if isinstance(r, dict):
+                    zone_sum[z] = r
+            for v, r in zip(valve_nums, results[nz:nz + nv]):
+                if isinstance(r, dict):
+                    valve_sum[v] = r
+            for z, r in zip(zone_nums, results[nz + nv:]):
+                if isinstance(r, dict):
+                    sprinkler_prefs[z] = r
+
         return {
             "dashboard": dashboard,
             "device_status": ok(device),
@@ -133,6 +175,13 @@ class IrrigreenClient:
             "schedules": ok(schedules),
             "directory": directory_ok,
             "schedule_prefs": sched_prefs,
+            "system_info": ok(sysinfo),
+            "connection": ok(connection),
+            "system_dashboard": ok(sysdash),
+            "system_pref": ok(syspref),
+            "zone_summaries": zone_sum,
+            "valve_summaries": valve_sum,
+            "sprinkler_prefs": sprinkler_prefs,
         }
 
     # -- control ---------------------------------------------------------------
@@ -147,3 +196,24 @@ class IrrigreenClient:
     async def async_set_schedule_enabled(self, idx: int, enabled: bool) -> None:
         """Enable or disable a schedule by its directory index."""
         await self._post(f"{EP_SCHEDULE_PREF}/{idx}", {"v": 2, "enabled": enabled})
+
+    async def async_calibrate(self, desc: dict) -> None:
+        """Calibrate a single head."""
+        await self._post(
+            EP_JOB_CALIBRATE,
+            {
+                "op": "calibrate",
+                "v": 1,
+                "data": {"v": 1, "desc": desc, "stabilizeTimeout": 60000, "maxRetries": 2},
+            },
+        )
+
+    async def async_test_devices(self, update: bool = False) -> None:
+        """Run the diagnostic 'scan_test' (checks devices, detects stuck valves)."""
+        await self._post(
+            EP_JOB_DIAGNOSTIC, {"op": "scan_test", "v": 1, "data": {"v": 1, "update": update}}
+        )
+
+    async def async_scan_identify(self) -> None:
+        """Scan/identify devices on the bus."""
+        await self._post(EP_JOB_SCAN, {"op": "scan", "v": 1})

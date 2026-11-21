@@ -123,3 +123,68 @@ class IrrigreenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise IrrigreenError(f"No schedule named {name}")
         await self.client.async_set_schedule_enabled(idx, enabled)
         await self.async_request_refresh()
+
+    async def async_calibrate_zone(self, zone: int) -> None:
+        desc = self.zone_desc(zone)
+        if desc is None:
+            raise IrrigreenError(f"No directory entry for zone {zone}")
+        await self.client.async_calibrate(desc)
+        await self.async_request_refresh()
+
+    async def async_test_devices(self) -> None:
+        await self.client.async_test_devices()
+        await self.async_request_refresh()
+
+    async def async_scan_identify(self) -> None:
+        await self.client.async_scan_identify()
+        await self.async_request_refresh()
+
+    # -- errors / system helpers ----------------------------------------------
+    def device_errors(self) -> list[dict]:
+        """Collected errors from every head and valve summary."""
+        out: list[dict] = []
+        for zone, s in ((self.data or {}).get("zone_summaries") or {}).items():
+            msgs = s.get("error_messages") or []
+            code = s.get("error_code") or 0
+            if msgs or code:
+                for z in (self.data or {}).get("dashboard", {}).get("enabled_zones", []):
+                    if z.get("zone") == zone:
+                        label = z.get("name") or f"Zone {zone}"
+                        break
+                else:
+                    label = f"Zone {zone}"
+                out.append({"device": label, "code": code, "messages": msgs})
+        for valve, s in ((self.data or {}).get("valve_summaries") or {}).items():
+            msgs = s.get("error_messages") or []
+            if msgs:
+                out.append({"device": f"Valve {valve}", "messages": msgs})
+        return out
+
+    @property
+    def system_info(self) -> dict:
+        return (self.data or {}).get("system_info") or {}
+
+    @property
+    def connection(self) -> dict:
+        return (self.data or {}).get("connection") or {}
+
+    @property
+    def system_dashboard(self) -> dict:
+        return (self.data or {}).get("system_dashboard") or {}
+
+    @property
+    def system_pref(self) -> dict:
+        return (self.data or {}).get("system_pref") or {}
+
+    def sprinkler_pref(self, zone: int) -> dict:
+        return ((self.data or {}).get("sprinkler_prefs") or {}).get(zone) or {}
+
+    def zone_type(self, zone: int) -> str | None:
+        from .const import HEAD_TYPE_NAMES
+
+        desc = self.zone_desc(zone) or {}
+        t = desc.get("t")
+        return HEAD_TYPE_NAMES.get(t, t)
+
+    def zone_summary(self, zone: int) -> dict:
+        return ((self.data or {}).get("zone_summaries") or {}).get(zone) or {}

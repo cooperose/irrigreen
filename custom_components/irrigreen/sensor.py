@@ -9,7 +9,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -32,11 +32,18 @@ async def async_setup_entry(
     entities: list[SensorEntity] = [
         SystemWaterAdjSensor(coordinator),
         JobStatusSensor(coordinator),
+        FirmwareVersionSensor(coordinator),
+        ConnectionSensor(coordinator),
+        ActiveErrorsSensor(coordinator),
+        LastRunWaterSensor(coordinator),
     ]
+
+    entities.append(WeatherAdjustSensor(coordinator))
 
     for zone in dashboard.get("enabled_zones", []):
         entities.append(ZoneStatusSensor(coordinator, zone["zone"]))
         entities.append(ZoneWaterAdjSensor(coordinator, zone["zone"]))
+        entities.append(ZoneTypeSensor(coordinator, zone["zone"]))
 
     for idx, _mv in enumerate(device.get("masterValves", [])):
         entities.append(MasterValveCurrentSensor(coordinator, idx))
@@ -106,6 +113,69 @@ class ZoneWaterAdjSensor(_ZoneMixin, SensorEntity):
         if not z or z.get("water_adj") is None:
             return None
         return round(float(z["water_adj"]) * 100)
+
+
+class ZoneTypeSensor(_ZoneMixin, SensorEntity):
+    """Head model (XR / HydroBoost) plus its config as attributes."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:sprinkler"
+
+    def __init__(self, coordinator, zone_num):
+        super().__init__(coordinator, zone_num, "type")
+
+    @property
+    def name(self) -> str:
+        return f"{self._zone_label()} type"
+
+    @property
+    def native_value(self):
+        return self.coordinator.zone_type(self._zone_num)
+
+    @property
+    def extra_state_attributes(self):
+        pref = self.coordinator.sprinkler_pref(self._zone_num)
+        summary = self.coordinator.zone_summary(self._zone_num)
+        aw = pref.get("aw") or {}
+        zt = aw.get("zoneTypes") or {}
+        return {
+            "double_coverage": pref.get("doubleCoverage"),
+            "flow_restrictor": pref.get("hasFlowRestrictor"),
+            "xp_enabled": pref.get("xpEnabled"),
+            "plant": zt.get("plant"),
+            "soil": zt.get("soil"),
+            "sun": zt.get("sun"),
+            "calibrated": summary.get("calibrated") if "calibrated" in summary else None,
+            "sqft": summary.get("sqft"),
+            "head_id": (self.coordinator.zone_desc(self._zone_num) or {}).get("id"),
+        }
+
+
+class WeatherAdjustSensor(IrrigreenEntity, SensorEntity):
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:weather-partly-rainy"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "weather_adjust")
+        self._attr_name = "Weather adjustment"
+
+    @property
+    def native_value(self):
+        wa = (self.coordinator.system_info.get("controller") or {}).get("weather_adjust")
+        try:
+            return round(float(wa) * 100)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        ctrl = self.coordinator.system_info.get("controller") or {}
+        return {
+            "automatic_watering": self.coordinator.system_pref.get("awEnabled"),
+            "timezone": ctrl.get("timezone"),
+            "eto_days": ctrl.get("eto_days"),
+            "battery": ctrl.get("battery"),
+        }
 
 
 class SystemWaterAdjSensor(IrrigreenEntity, SensorEntity):
@@ -202,6 +272,84 @@ class ScheduleSensor(IrrigreenEntity, SensorEntity):
             "cycle": s.get("cycle"),
             "interval": s.get("interval"),
             "last_watering": s.get("last_watering"),
+        }
+
+
+class FirmwareVersionSensor(IrrigreenEntity, SensorEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "firmware_version")
+        self._attr_name = "Firmware version"
+
+    @property
+    def native_value(self):
+        return (self.coordinator.system_info.get("controller") or {}).get("version")
+
+
+class ConnectionSensor(IrrigreenEntity, SensorEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "cloud_connection")
+        self._attr_name = "Cloud connection"
+
+    @property
+    def native_value(self):
+        return self.coordinator.connection.get("state")
+
+    @property
+    def extra_state_attributes(self):
+        c = self.coordinator.connection
+        return {"network": c.get("network"), "rssi": c.get("rssi")}
+
+
+class ActiveErrorsSensor(IrrigreenEntity, SensorEntity):
+    """Number of devices reporting an error, with details (stuck valves etc.)."""
+
+    _attr_icon = "mdi:alert-circle"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "active_errors")
+        self._attr_name = "Active errors"
+
+    @property
+    def native_value(self):
+        return len(self.coordinator.device_errors())
+
+    @property
+    def extra_state_attributes(self):
+        errs = self.coordinator.device_errors()
+        return {
+            "error_count": (self.coordinator.system_dashboard or {}).get("error_count"),
+            "errors": errs,
+        }
+
+
+class LastRunWaterSensor(IrrigreenEntity, SensorEntity):
+    _attr_native_unit_of_measurement = "gal"
+    _attr_icon = "mdi:water"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "last_run_water")
+        self._attr_name = "Last run water use"
+
+    def _last_run(self) -> dict:
+        return (self.coordinator.system_dashboard or {}).get("last_run") or {}
+
+    @property
+    def native_value(self):
+        return (self._last_run().get("actual") or {}).get("gallons")
+
+    @property
+    def extra_state_attributes(self):
+        lr = self._last_run()
+        sd = self.coordinator.system_dashboard or {}
+        return {
+            "schedule": lr.get("schedule"),
+            "timestamp": lr.get("time_stamp"),
+            "watering_history_days": sd.get("watering_history_days"),
+            "watering_history_weeks": sd.get("watering_history_weeks"),
         }
 
 
